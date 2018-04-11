@@ -74,6 +74,7 @@ PB_NS_BEGIN
 #define PB_WIRETYPES(X) /* X(name, index) */\
     X(VARINT, "varint", 0) X(64BIT,  "64bit", 1) X(BYTES, "bytes", 2)  \
     X(GSTART, "gstart", 3) X(GEND,   "gend",  4) X(32BIT, "32bit", 5)  \
+    X(8BIT, "8bit", 6) X(16BIT,   "16bit",  7)\
 
 #define PB_TYPES(X)           /* X(name, type, index) */\
     X(double,   double,   1)  X(float,    float,    2)  \
@@ -85,6 +86,7 @@ PB_NS_BEGIN
     X(uint32,   uint32_t, 13) X(enum,     int32_t,  14) \
     X(sfixed32, int32_t,  15) X(sfixed64, int64_t,  16) \
     X(sint32,   int32_t,  17) X(sint64,   int64_t,  18) \
+    X(fixed8,   uint8_t,  19) X(fixed16,  uint16_t,  20) \
 
 typedef enum pb_WireType {
 #define X(name, s, index) PB_T##name,
@@ -129,6 +131,8 @@ PB_API size_t pb_readvarint32 (pb_Slice *s, uint32_t *pv);
 PB_API size_t pb_readvarint64 (pb_Slice *s, uint64_t *pv);
 PB_API size_t pb_readfixed32 (pb_Slice *s, uint32_t *pv);
 PB_API size_t pb_readfixed64 (pb_Slice *s, uint64_t *pv);
+PB_API size_t pb_readfixed8 (pb_Slice *s, uint8_t *pv);
+PB_API size_t pb_readfixed16 (pb_Slice *s, uint16_t *pv);
 
 PB_API size_t pb_readslice (pb_Slice *s, size_t len, pb_Slice *pv);
 PB_API size_t pb_readbytes (pb_Slice *s, pb_Slice *pv);
@@ -174,6 +178,8 @@ PB_API pb_Slice pb_result (pb_Buffer *b);
 
 PB_API size_t pb_addvarint32 (pb_Buffer *b, uint32_t v);
 PB_API size_t pb_addvarint64 (pb_Buffer *b, uint64_t v);
+PB_API size_t pb_addfixed8   (pb_Buffer *b, uint8_t  v);
+PB_API size_t pb_addfixed16  (pb_Buffer *b, uint16_t v);
 PB_API size_t pb_addfixed32  (pb_Buffer *b, uint32_t v);
 PB_API size_t pb_addfixed64  (pb_Buffer *b, uint64_t v);
 
@@ -449,6 +455,34 @@ PB_API size_t pb_readvarint64(pb_Slice *s, uint64_t *pv) {
     return pb_readvarint_slow(s, pv);
 }
 
+PB_API size_t pb_readfixed8(pb_Slice *s, uint8_t *pv) {
+    int i;
+    uint8_t n = 0;
+    if (s->p +1 > s->end)
+        return 0;
+
+    n <<= 8;
+    n |= s->p[i] & 0xFF;
+    
+    s->p += 1;
+    *pv = n;
+    return 1;
+}
+
+PB_API size_t pb_readfixed16(pb_Slice *s, uint16_t *pv) {
+    int i;
+    uint32_t n = 0;
+    if (s->p + 2 > s->end)
+        return 0;
+    for (i = 1; i >= 0; --i) {
+        n <<= 8;
+        n |= s->p[i] & 0xFF;
+    }
+    s->p += 2;
+    *pv = n;
+    return 2;
+}
+
 PB_API size_t pb_readfixed32(pb_Slice *s, uint32_t *pv) {
     int i;
     uint32_t n = 0;
@@ -579,6 +613,8 @@ PB_API int pb_wtypebytype(int type) {
     case PB_Tsfixed64:  return PB_T64BIT;
     case PB_Tsint32:    return PB_TVARINT;
     case PB_Tsint64:    return PB_TVARINT;
+    case PB_Tfixed8:    return PB_T8BIT;
+    case PB_Tfixed16:   return PB_T16BIT;
     default:            return PB_TWIRECOUNT;
     }
 }
@@ -744,6 +780,21 @@ PB_API size_t pb_addfixed32(pb_Buffer *b, uint32_t n) {
     *ch   = n & 0xFF;
     return pb_addsize(b, 4);
 }
+
+PB_API size_t pb_addfixed8(pb_Buffer *b, uint8_t n) {
+    char *ch = (char*)pb_prepbuffsize(b, 1);
+    if (ch == NULL) return 0;
+    *ch   = n & 0xFF;
+    return pb_addsize(b, 1);
+}
+PB_API size_t pb_addfixed16(pb_Buffer *b, uint32_t n) {
+    char *ch = (char*)pb_prepbuffsize(b, 4);
+    if (ch == NULL) return 0;
+    *ch++ = n & 0xFF; n >>= 8;
+    *ch   = n & 0xFF;
+    return pb_addsize(b, 2);
+}
+
 
 PB_API size_t pb_addfixed64(pb_Buffer *b, uint64_t n) {
     char *ch = (char*)pb_prepbuffsize(b, 8);

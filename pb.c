@@ -187,6 +187,8 @@ static void lpb_readbytes(lua_State *L, pb_SliceExt *s, pb_SliceExt *pv) {
 
 typedef union lpb_Value {
     pb_SliceExt s[1];
+    uint8_t u8;
+    uint16_t u16;
     uint32_t u32;
     uint64_t u64;
     lua_Integer lint;
@@ -208,6 +210,15 @@ static int lpb_addtype(lua_State *L, pb_Buffer *b, int idx, int type) {
     case PB_Tfloat:
         v.lnum = lua_tonumberx(L, idx, &ret);
         if (ret) pb_addfixed32(b, pb_encode_float((float)v.lnum));
+        break;
+    case PB_Tfixed8:
+        v.lint = lua_tointegerx(L, idx, &ret);
+        if (ret) pb_addfixed8(b, (uint8_t)v.lint);
+        break;
+
+    case PB_Tfixed16:
+        v.lint = lua_tointegerx(L, idx, &ret);
+        if (ret) pb_addfixed16(b, (uint16_t)v.lint);
         break;
     case PB_Tfixed32:
         v.lint = lua_tointegerx(L, idx, &ret);
@@ -292,6 +303,20 @@ static void lpb_readtype(lua_State *L, int type, pb_SliceExt *s) {
         case PB_Tdouble:   lua_pushnumber(L, pb_decode_double(v.u64)); break;
         case PB_Tfixed64:  lua_pushinteger(L, v.u64); break;
         case PB_Tsfixed64: lua_pushinteger(L, (int64_t)v.u64); break;
+        }
+        break;
+    case PB_Tfixed8:
+        {
+            if (pb_readfixed8(&s->base, &v.u8) == 0)
+                luaL_error(L, "invalid fixed8 value at offset %d", lpb_offset(s));
+            lua_pushinteger(L, v.u8);
+        }
+        break;
+       case PB_Tfixed16:
+        {
+            if (pb_readfixed16(&s->base, &v.u16) == 0)
+                luaL_error(L, "invalid fixed8 value at offset %d", lpb_offset(s));
+            lua_pushinteger(L, v.u8);
         }
         break;
     case PB_Tbytes:
@@ -483,6 +508,8 @@ static int lpb_typefmt(const char *fmt) {
     case 'U': return PB_Tuint64;
     case 'X': return PB_Tfixed64;
     case 'Y': return PB_Tsfixed64;
+    case 'B': return PB_Tfixed8;
+    case 'S': return PB_Tfixed16; 
     }
     return -1;
 }
